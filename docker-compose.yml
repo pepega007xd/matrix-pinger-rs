@@ -1,0 +1,22 @@
+name: matrix-pinger
+
+services:
+  matrix-pinger:
+
+    # image name
+    image: matrix-pinger-rs
+
+    # Build the image from the Dockerfile in the current directory
+    build: .
+
+    # running container name
+    container_name: matrix-pinger-rs
+
+    # The "Service" behavior: Restart automatically if it crashes or the
+    # server reboots
+    restart: unless-stopped
+
+    volumes:
+      - ./config.json:/matrix-pinger-rs/config.json
+      - ./password.txt:/matrix-pinger-rs/password.txt
+      - ./store:/matrix-pinger-rs/store
