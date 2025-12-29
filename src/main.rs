@@ -19,6 +19,11 @@ use serde::Deserialize;
 use std::fs::{self, File};
 use std::io::BufReader;
 
+use std::sync::LazyLock;
+use std::time::Instant;
+
+static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
+
 #[derive(Debug, Deserialize)]
 struct Config {
     username: String,
@@ -26,6 +31,17 @@ struct Config {
     store_path: String,
     device_id: String,
     device_display_name: String,
+}
+
+fn get_uptime() -> String {
+    let total_seconds = START_TIME.elapsed().as_secs();
+
+    let days = total_seconds / 86400;
+    let hours = (total_seconds % 86400) / 3600;
+    let minutes = (total_seconds % 3600) / 60;
+    let seconds = total_seconds % 60;
+
+    format!("{}d {}h {}m {}s", days, hours, minutes, seconds)
 }
 
 fn get_reply_text(msg: String) -> String {
@@ -37,6 +53,10 @@ fn get_reply_text(msg: String) -> String {
 
     if msg_lower.starts_with("?echo ") {
         output = msg.strip_prefix("?echo ").unwrap_or("")
+    }
+
+    if msg_lower.starts_with("?uptime") {
+        return get_uptime();
     }
 
     return output.to_string()
@@ -63,6 +83,11 @@ fn get_password() -> String {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+
+    /* initialize uptime */
+    let elapsed = START_TIME.elapsed().as_secs();
+    if elapsed < 69 {}  // suppress warnings
+
     // 1. Define credentials
     let config = get_config();
     let password = get_password();
