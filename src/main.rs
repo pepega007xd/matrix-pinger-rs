@@ -35,8 +35,8 @@ fn get_reply_text(msg: String) -> String {
 
     if msg_lower == "ping" { output = "pong"; }
 
-    if msg_lower.starts_with("!echo ") {
-        output = msg.strip_prefix("!echo ").unwrap_or("")
+    if msg_lower.starts_with("/echo ") {
+        output = msg.strip_prefix("/echo ").unwrap_or("")
     }
 
     return output.to_string()
