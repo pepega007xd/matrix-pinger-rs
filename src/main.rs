@@ -106,6 +106,10 @@ async fn main() -> Result<()> {
 async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
     if let MessageType::Text(text_content) = &event.content.msgtype {
 
+        if room.client().user_id() == Some(&event.sender) {
+            return
+        }
+
         let response = get_reply_text(text_content.body.clone());
 
         if response != "" {
