@@ -61,6 +61,14 @@ fn get_reply_text(msg: String) -> String {
         return get_uptime();
     }
 
+    if msg_lower.starts_with("?help") {
+        output = "ping - invoke pong\n\
+                  ?echo CONTENT - echoes CONTENT\n\
+                  ?uptime - reports current uptime\n\
+                  ?help - shows this help message\n\
+                  https://github.com/okurka12/matrix-pinger-rs"
+    }
+
     return output.to_string()
 }
 
