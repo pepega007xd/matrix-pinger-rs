@@ -1,16 +1,20 @@
 /**
  * google gemini helped me write most of this
  */
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use matrix_sdk::{
     Client, RoomState,
+    attachment::AttachmentConfig,
     config::SyncSettings,
-    room::Room,
+    room::{
+        Room,
+        reply::{EnforceThread, Reply},
+    },
     ruma::events::room::{
         member::StrippedRoomMemberEvent,
         message::{
             AddMentions, ForwardThread, MessageType, OriginalSyncRoomMessageEvent,
-            RoomMessageEventContent,
+            RoomMessageEventContent, TextMessageEventContent,
         },
     },
 };
@@ -81,7 +85,7 @@ fn get_password() -> String {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    /* initialize uptime */
+    // initialize uptime
     LazyLock::force(&START_TIME);
 
     // 1. Define credentials
@@ -126,13 +130,56 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
+#[derive(Clone, Debug, Deserialize)]
+struct CatImage {
+    url: String,
+}
+
+async fn send_cat(event: &OriginalSyncRoomMessageEvent, room: &Room) -> Result<()> {
+    // fetch image url in json object
+    let urls = reqwest::get("https://api.thecatapi.com/v1/images/search")
+        .await?
+        .json::<Vec<CatImage>>()
+        .await?;
+    let url = urls
+        .get(0)
+        .ok_or(anyhow!("API returned no results"))?
+        .url
+        .as_str();
+
+    // fetch image bytes
+    let bytes = reqwest::get(url).await?.bytes().await?;
+
+    room.send_attachment(
+        "cat.jpg",
+        &mime::IMAGE_JPEG,
+        Vec::from(bytes),
+        AttachmentConfig::new()
+            .caption(Some(TextMessageEventContent::plain("macickaaaaaa")))
+            .reply(Some(Reply {
+                event_id: event.event_id.clone(),
+                enforce_thread: EnforceThread::MaybeThreaded,
+            })),
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) -> Result<()> {
     if let MessageType::Text(text_content) = &event.content.msgtype {
         if room.client().user_id() == Some(&event.sender) {
-            return;
+            return Ok(());
         }
 
-        if let Some(response) = get_reply_text(text_content.body.as_str()) {
+        let command = text_content.body.as_str();
+
+        // handle sending an image
+        if command == "?cat" {
+            send_cat(&event, &room).await?;
+        } else
+        // handle text commands
+        if let Some(response) = get_reply_text(command) {
             println!(
                 "Received {:?} in room: {:?}",
                 text_content.body,
@@ -148,6 +195,8 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
             room.send(content).await.ok();
         }
     }
+
+    Ok(())
 }
 
 pub async fn handle_invitation(ev: StrippedRoomMemberEvent, room: Room, client: Client) {
