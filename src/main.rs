@@ -1,21 +1,18 @@
 /**
  * google gemini helped me write most of this
  */
-
 use anyhow::Result;
 use matrix_sdk::{
+    Client, RoomState,
     config::SyncSettings,
     room::Room,
-    ruma::events::room::message::{
-        OriginalSyncRoomMessageEvent,
-        RoomMessageEventContent,
-        MessageType,
-        ForwardThread,
-        AddMentions
+    ruma::events::room::{
+        member::StrippedRoomMemberEvent,
+        message::{
+            AddMentions, ForwardThread, MessageType, OriginalSyncRoomMessageEvent,
+            RoomMessageEventContent,
+        },
     },
-    ruma::events::room::member::StrippedRoomMemberEvent,
-    Client,
-    RoomState
 };
 use serde::Deserialize;
 use std::fs::{self, File};
@@ -25,6 +22,13 @@ use std::sync::LazyLock;
 use std::time::Instant;
 
 static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
+
+const HELP_STRING: &str = r#"
+ping - invoke pong
+?echo CONTENT - echoes CONTENT
+?uptime - reports current uptime
+?help - shows this help message
+https://github.com/okurka12/matrix-pinger-rs"#;
 
 #[derive(Debug, Deserialize)]
 struct Config {
@@ -46,57 +50,39 @@ fn get_uptime() -> String {
     format!("{}d {}h {}m {}s", days, hours, minutes, seconds)
 }
 
-fn get_reply_text(msg: String) -> String {
-    let msg_lower = msg.to_lowercase().trim().to_string();
-
-    let mut output = "";
-
-    if msg_lower == "ping" { output = "pong"; }
-
-    if msg_lower.starts_with("?echo ") {
-        output = msg.strip_prefix("?echo ").unwrap_or("")
+fn get_reply_text(msg: &str) -> Option<String> {
+    if let Some(text) = msg.strip_prefix("?echo ") {
+        Some(text.to_string())
+    } else {
+        match msg {
+            "ping" => Some("pong".to_string()),
+            "?uptime" => Some(get_uptime()),
+            "?help" => Some(HELP_STRING.to_string()),
+            _ => None,
+        }
     }
-
-    if msg_lower.starts_with("?uptime") {
-        return get_uptime();
-    }
-
-    if msg_lower.starts_with("?help") {
-        output = "ping - invoke pong\n\
-                  ?echo CONTENT - echoes CONTENT\n\
-                  ?uptime - reports current uptime\n\
-                  ?help - shows this help message\n\
-                  https://github.com/okurka12/matrix-pinger-rs"
-    }
-
-    return output.to_string()
 }
 
 fn get_config() -> Config {
-    let file = File::open("config.json")
-        .expect("failed to open config.json");
+    let file = File::open("config.json").expect("failed to open config.json");
     let reader = BufReader::new(file);
 
     // Read the JSON contents of the file as an instance of `Config`.
-    let config = serde_json::from_reader(reader)
-        .expect("failed to read config.json values");
+    let config = serde_json::from_reader(reader).expect("failed to read config.json values");
 
     return config;
 }
 
 fn get_password() -> String {
-    let password = fs::read_to_string("password.txt")
-        .expect("couldn't read password.txt");
+    let password = fs::read_to_string("password.txt").expect("couldn't read password.txt");
 
     return password.trim().to_string();
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-
     /* initialize uptime */
-    let elapsed = START_TIME.elapsed().as_secs();
-    if elapsed < 69 {}  // suppress warnings
+    LazyLock::force(&START_TIME);
 
     // 1. Define credentials
     let config = get_config();
@@ -115,7 +101,8 @@ async fn main() -> Result<()> {
     // If we restore from disk, client.logged_in() returns true.
     if client.session().is_none() {
         println!("No session found. Logging in...");
-        client.matrix_auth()
+        client
+            .matrix_auth()
             .login_username(config.username, &password)
             .initial_device_display_name(&config.device_display_name)
             .device_id(&config.device_id)
@@ -141,37 +128,29 @@ async fn main() -> Result<()> {
 
 async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) {
     if let MessageType::Text(text_content) = &event.content.msgtype {
-
         if room.client().user_id() == Some(&event.sender) {
-            return
+            return;
         }
 
-        let response = get_reply_text(text_content.body.clone());
-
-        if response != "" {
+        if let Some(response) = get_reply_text(text_content.body.as_str()) {
             println!(
                 "Received {:?} in room: {:?}",
                 text_content.body,
                 room.room_id()
             );
 
-            let content = RoomMessageEventContent::text_plain(response)
-                .make_reply_to(
-                    &event,
-                    ForwardThread::Yes,
-                    AddMentions::Yes
-                );
+            let content = RoomMessageEventContent::text_plain(response).make_reply_to(
+                &event,
+                ForwardThread::Yes,
+                AddMentions::Yes,
+            );
 
             room.send(content).await.ok();
         }
     }
 }
 
-pub async fn handle_invitation(
-    ev: StrippedRoomMemberEvent,
-    room: Room,
-    client: Client,
-) {
+pub async fn handle_invitation(ev: StrippedRoomMemberEvent, room: Room, client: Client) {
     // 1. Check if the room state is 'Invited'
     // In 0.16, we check the state() method
     if room.state() != RoomState::Invited {
@@ -179,7 +158,9 @@ pub async fn handle_invitation(
     }
 
     // 2. Ensure the invite is for the bot
-    let Some(user_id) = client.user_id() else { return };
+    let Some(user_id) = client.user_id() else {
+        return;
+    };
     if ev.state_key != user_id.to_string() {
         return;
     }
