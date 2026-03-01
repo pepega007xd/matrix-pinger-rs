@@ -2,6 +2,7 @@
  * google gemini helped me write most of this
  */
 use anyhow::{Result, anyhow};
+use chrono::Datelike;
 use matrix_sdk::{
     Client, RoomState,
     attachment::AttachmentConfig,
@@ -28,11 +29,14 @@ use std::time::Instant;
 static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 const HELP_STRING: &str = r#"
-ping - invoke pong
-?echo <CONTENT> - echoes CONTENT
-?cat - sends a picture of a cat
-?uptime - reports current uptime
-?help - shows this help message
+`ping` - invoke pong
+`?echo CONTENT` - echoes `CONTENT`
+`?cat` - sends a picture of a cat
+`?uptime` - reports current uptime
+`?week` - shows the current week number
+`?help` - shows this help message
+
+**Source code:** 
 https://github.com/okurka12/matrix-pinger-rs"#;
 
 #[derive(Debug, Deserialize)]
@@ -55,13 +59,35 @@ fn get_uptime() -> String {
     format!("{}d {}h {}m {}s", days, hours, minutes, seconds)
 }
 
+fn get_week() -> String {
+    let now = chrono::Local::now();
+    let calendar_week = now.iso_week().week();
+    let parity = if calendar_week % 2 == 0 {
+        "even"
+    } else {
+        "odd"
+    };
+    // TODO: add correct offset for winter semester when we know it
+    let semester_week = calendar_week - 6;
+
+    format!(
+        r#"
+**Calendar week:** `{calendar_week}` ({parity})
+**Semester week:** `{semester_week}`
+"#
+    )
+}
+
 fn get_reply_text(msg: &str) -> Option<String> {
-    if let Some(text) = msg.strip_prefix("?echo ") && !text.is_empty() {
+    if let Some(text) = msg.strip_prefix("?echo ")
+        && !text.is_empty()
+    {
         Some(text.to_string())
     } else {
         match msg {
             m if m.eq_ignore_ascii_case("ping") => Some("pong".to_string()),
             "?uptime" => Some(get_uptime()),
+            "?week" => Some(get_week()),
             "?help" => Some(HELP_STRING.to_string()),
             _ => None,
         }
@@ -188,11 +214,9 @@ async fn on_room_message(event: OriginalSyncRoomMessageEvent, room: Room) -> Res
                 room.room_id()
             );
 
-            let content = RoomMessageEventContent::text_plain(response).make_reply_to(
-                &event,
-                ForwardThread::Yes,
-                AddMentions::Yes,
-            );
+            let content: RoomMessageEventContent =
+                MessageType::Text(TextMessageEventContent::markdown(response)).into();
+            let content = content.make_reply_to(&event, ForwardThread::Yes, AddMentions::Yes);
 
             room.send(content).await.ok();
         }
