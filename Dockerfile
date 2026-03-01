@@ -16,5 +16,6 @@ RUN mkdir src && \
 COPY . .
 RUN touch src/main.rs
 
-# 6. The command to run your bot when the container starts
+RUN cargo build
+
 CMD ["cargo", "run"]
