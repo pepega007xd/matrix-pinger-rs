@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-matrix-sdk = { version = "0.16", features = ["sqlite"] }
+matrix-sdk = { version = "0.16", features = ["sqlite", "markdown"] }
 tokio = { version = "1", features = ["full"] }
 anyhow = "1.0"
 serde = "1"
 serde_json = "1.0.148"
 reqwest = { version = "0.13.2", features = ["json"] }
 mime = "0.3.17"
+chrono = "0.4.44"
