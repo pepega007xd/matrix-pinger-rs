@@ -26,6 +26,8 @@ use std::io::BufReader;
 use std::sync::LazyLock;
 use std::time::Instant;
 
+const CMD_CHAIN_MAX_LENGTH: i32 = 50;
+
 static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 const HELP_STRING: &str = r#"
@@ -36,7 +38,7 @@ const HELP_STRING: &str = r#"
 `?week` - shows the current week number
 `?help` - shows this help message
 
-**Source code:** 
+**Source code:**
 https://github.com/okurka12/matrix-pinger-rs"#;
 
 #[derive(Debug, Deserialize)]
@@ -78,11 +80,20 @@ fn get_week() -> String {
     )
 }
 
-fn get_reply_text(msg: &str) -> Option<String> {
-    if let Some(text) = msg.strip_prefix("?echo ")
-        && !text.is_empty()
+fn echo_command(msg: &str) -> Option<String> {
+    if let Some(text) = msg.trim().strip_prefix("?echo ")
+        && !text.trim().is_empty()
+        && (!text.starts_with("?") || text.chars().count() < CMD_CHAIN_MAX_LENGTH as usize)
     {
         Some(text.to_string())
+    } else {
+        None
+    }
+}
+
+fn get_reply_text(msg: &str) -> Option<String> {
+    if let Some(text) = echo_command(msg) {
+        Some(text)
     } else {
         match msg {
             m if m.eq_ignore_ascii_case("ping") => Some("pong".to_string()),
