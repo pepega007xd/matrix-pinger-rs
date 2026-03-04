@@ -28,6 +28,8 @@ use std::time::Instant;
 
 const CMD_CHAIN_MAX_LENGTH: i32 = 50;
 
+const ECHO_MAX_LENGTH: i32 = 1500;
+
 static START_TIME: LazyLock<Instant> = LazyLock::new(Instant::now);
 
 const HELP_STRING: &str = r#"
@@ -84,6 +86,7 @@ fn echo_command(msg: &str) -> Option<String> {
     if let Some(text) = msg.trim().strip_prefix("?echo ")
         && !text.trim().is_empty()
         && (!text.starts_with("?") || text.chars().count() < CMD_CHAIN_MAX_LENGTH as usize)
+        && text.chars().count() < ECHO_MAX_LENGTH as usize
     {
         Some(text.to_string())
     } else {
