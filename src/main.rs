@@ -38,6 +38,7 @@ const HELP_STRING: &str = r#"
 `?cat` - sends a picture of a cat
 `?uptime` - reports current uptime
 `?week` - shows the current week number
+`?version` - shows the current version (git commit hash and date)
 `?help` - shows this help message
 
 **Source code:**
@@ -140,6 +141,11 @@ fn get_reply_text(msg: &str) -> Option<String> {
             m if m.eq_ignore_ascii_case("ping") => Some("pong".to_string()),
             "?uptime" => Some(get_uptime()),
             "?week" => Some(get_week()),
+            "?version" => Some(format!(
+                "**Hash:** `{}`\n**Date:** `{}`",
+                env!("GIT_COMMIT_HASH"),
+                env!("GIT_COMMIT_DATE")
+            )),
             "?help" => Some(HELP_STRING.to_string()),
             _ => None,
         }
