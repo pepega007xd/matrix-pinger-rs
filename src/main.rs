@@ -52,6 +52,33 @@ struct Config {
     device_display_name: String,
 }
 
+fn is_running_in_container() -> bool {
+    std::env::var("RUNNING_IN_DOCKER").is_ok() || std::path::Path::new("/.dockerenv").exists()
+}
+
+fn get_host_uptime() -> Option<String> {
+    if let Ok(content) = fs::read_to_string("/proc/uptime") {
+        if let Some(sec_str) = content.split_whitespace().next() {
+            if let Some(dot_idx) = sec_str.find('.') {
+                if let Ok(total_seconds) = sec_str[..dot_idx].parse::<u64>() {
+                    let days = total_seconds / 86400;
+                    let hours = (total_seconds % 86400) / 3600;
+                    let minutes = (total_seconds % 3600) / 60;
+                    let seconds = total_seconds % 60;
+                    return Some(format!("{}d {}h {}m {}s", days, hours, minutes, seconds));
+                }
+            } else if let Ok(total_seconds) = sec_str.parse::<u64>() {
+                let days = total_seconds / 86400;
+                let hours = (total_seconds % 86400) / 3600;
+                let minutes = (total_seconds % 3600) / 60;
+                let seconds = total_seconds % 60;
+                return Some(format!("{}d {}h {}m {}s", days, hours, minutes, seconds));
+            }
+        }
+    }
+    None
+}
+
 fn get_uptime() -> String {
     let total_seconds = START_TIME.elapsed().as_secs();
 
@@ -60,7 +87,18 @@ fn get_uptime() -> String {
     let minutes = (total_seconds % 3600) / 60;
     let seconds = total_seconds % 60;
 
-    format!("{}d {}h {}m {}s", days, hours, minutes, seconds)
+    let service_uptime = format!("{}d {}h {}m {}s", days, hours, minutes, seconds);
+    let host_uptime = get_host_uptime().unwrap_or_else(|| "unknown".to_string());
+    let container_info = if is_running_in_container() {
+        " (running inside container)"
+    } else {
+        ""
+    };
+
+    format!(
+        "**Service uptime:** {}\n**Host uptime:** {}{}",
+        service_uptime, host_uptime, container_info
+    )
 }
 
 fn get_week() -> String {

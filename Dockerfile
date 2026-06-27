@@ -5,6 +5,8 @@ FROM rust:1.92-trixie
 # 2. Create a folder inside the container to hold your app
 WORKDIR /matrix-pinger-rs
 
+ENV RUNNING_IN_DOCKER=true
+
 # create intermediate image with the libraries compiled
 COPY Cargo.toml Cargo.lock ./
 RUN mkdir src && \

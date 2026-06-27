@@ -16,6 +16,9 @@ services:
     # server reboots
     restart: unless-stopped
 
+    environment:
+      - RUNNING_IN_DOCKER=true
+
     volumes:
       - ./config.json:/matrix-pinger-rs/config.json
       - ./password.txt:/matrix-pinger-rs/password.txt
